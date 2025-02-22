@@ -1,6 +1,6 @@
 from deepface import DeepFace
 from Faces import Faces
-from opencv_detection import FaceDetector
+from FaceDetector import FaceDetector
 
 class BlackList:
         def __init__(self, databaseFolder):
@@ -9,7 +9,7 @@ class BlackList:
             self._databaseFolder = databaseFolder
 
         def _isBlackListed(self, numpyImage):
-            results = DeepFace.find(img_path=numpyImage, db_path=self._databaseFolder,silent=True)
+            results = DeepFace.find(img_path=numpyImage, db_path=self._databaseFolder,silent=True, enforce_detection=False, model_name="SFace")
             if results[0].empty:
                 return False
             

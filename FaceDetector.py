@@ -36,6 +36,8 @@ class FaceDetector:
             actual_height = self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
             
             self._resolution = (actual_width, actual_height)
+            
+            self._cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
             print(f"Camera initialized at resolution: {actual_width}x{actual_height}")
             self.is_running = True
@@ -95,7 +97,7 @@ class FaceDetector:
 
             for face in faces:
                 x, y, w, h = face
-                croppedFaceImageData = image[y:y+h, x:x+w]
+                croppedFaceImageData = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)[y:y+h, x:x+w]
                 output.append(Faces(croppedFaceImageData, x, y, w, h, self._resolution))
 
             return True, output

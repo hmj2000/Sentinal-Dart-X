@@ -1,11 +1,18 @@
 from BlackList import BlackList
+import matplotlib.pyplot as plt
 
 def main():
     bl = BlackList("blacklistdb")
+
+    
     while True:
-        bfaces = bl.getBlackListedFacesInView()
-        if len(bfaces) == 0:
-            print("BLACKLIST FACE NOT PRESENT")
+        fs = bl.getBlackListedFacesInView()
+    
+        if len(fs) != 0:
+            print("Black Listed Face Found")
         else:
-            print("BLACKLIST FACE PRESENT")
+            print("Black Listed Face Not Found")
+        
+        
+    
 main()
