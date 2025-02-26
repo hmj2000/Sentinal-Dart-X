@@ -16,6 +16,18 @@ struct CommandPacket
     uint8_t terminator;     // Should always be '\n' (marks end of a valid packet)
 };
 
+// Activate relay to fire
+void fireNerfGun() {
+    Serial.println("Executing: FIRE GUN");
+    digitalWrite(FIRE_PIN, HIGH);
+}
+
+// Deactivate relay to stop firing
+void stopFireNerfGun() {
+    Serial.println("Executing: STOP FIRING");
+    digitalWrite(FIRE_PIN, LOW);
+}
+
 
 //Function to process received command that executes appropriate actions based on command number
 
@@ -39,14 +51,17 @@ void processCommand(const CommandPacket& cmd)
         case 1: // Toggle Nerf Gun
             if (cmd.units == 1)  // If '1', fire the gun
             {  
-                Serial.println("Executing: FIRE GUN");
-                digitalWrite(GUN_TRIGGER_PIN, HIGH);
+                //Serial.println("Executing: FIRE GUN");
+                //digitalWrite(GUN_TRIGGER_PIN, HIGH);
+                fireNerfGun();
+
             } 
             
             else // If '0', stop firing
             {  
-                Serial.println("Executing: STOP FIRING");
-                digitalWrite(GUN_TRIGGER_PIN, LOW);
+                //Serial.println("Executing: STOP FIRING");
+                //digitalWrite(GUN_TRIGGER_PIN, LOW);
+                stopFireNerfGun();
             }
             break;
 
@@ -140,9 +155,3 @@ void loop()
         processCommand(cmd);       // Execute the corresponding action
     }
 }
-
-
-
-
-
-
