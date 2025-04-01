@@ -53,6 +53,7 @@ def loop(faceCascade, cap, fb, s, cs):
         
         oldestFace = fb.getOldestTrackedFace()
         
+        
         if oldestFace is not None:
             def deltaFromCenter(face):
                 centerX = Constants.captureResolutionWidth / 2
@@ -60,32 +61,31 @@ def loop(faceCascade, cap, fb, s, cs):
 
             def pixelArea(face):
                 return face.w * face.h
-                
-            if pixelArea(oldestFace) >= Constants.minimumPixelAreaFireRange:
-                if abs(deltaFromCenter(oldestFace)) < Constants.maxXDistanceFromCenter:
+
+
+            if abs(deltaFromCenter(oldestFace)) < Constants.maxXDistanceFromCenter:
+                if pixelArea(oldestFace) >= Constants.minimumPixelAreaFireRange:
                     if deployed():
                         cs.fire()
                     if debug():
                         cv2.putText(resizedFrame, "FIRE", (0,80), cv2.FONT_HERSHEY_SIMPLEX, 3.0, (0, 0, 255), 2, cv2.LINE_AA)
                     s.play()
                 else:
-                    if deltaFromCenter(oldestFace) < 0:
-                        if deployed():
-                            cs.rotate(clockwise=False)
-                        if debug():
-                            cv2.putText(resizedFrame, "ROTATE LEFT", (0,80), cv2.FONT_HERSHEY_SIMPLEX, 3.0, (0, 0, 255), 2, cv2.LINE_AA)
-                    else:
-                        if deployed():
-                            cs.rotate(clockwise=True)
-                        if debug():
-                            cv2.putText(resizedFrame, "ROTATE RIGHT", (0,80), cv2.FONT_HERSHEY_SIMPLEX, 3.0, (0, 0, 255), 2, cv2.LINE_AA)
-                    
+                    if deployed():
+                        cs.move(forward=True)
+                    if debug():
+                        cv2.putText(resizedFrame, "FORWARD", (0,80), cv2.FONT_HERSHEY_SIMPLEX, 3.0, (0, 0, 255), 2, cv2.LINE_AA)
             else:
-                if deployed():
-                    cs.move(forward=True)
-                if debug():
-                    cv2.putText(resizedFrame, "FORWARD", (0,80), cv2.FONT_HERSHEY_SIMPLEX, 3.0, (0, 0, 255), 2, cv2.LINE_AA)
-                
+                if deltaFromCenter(oldestFace) < 0:
+                    if deployed():
+                        cs.rotate(clockwise=False)
+                    if debug():
+                        cv2.putText(resizedFrame, "ROTATE LEFT", (0,80), cv2.FONT_HERSHEY_SIMPLEX, 3.0, (0, 0, 255), 2, cv2.LINE_AA)
+                else:
+                    if deployed():
+                        cs.rotate(clockwise=True)
+                    if debug():
+                        cv2.putText(resizedFrame, "ROTATE RIGHT", (0,80), cv2.FONT_HERSHEY_SIMPLEX, 3.0, (0, 0, 255), 2, cv2.LINE_AA)
         else:
             if deployed():
                 cs.roam()
