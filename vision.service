@@ -1,0 +1,12 @@
+[unit]
+Description=Starts vision code for the Orange Pi
+After=network.target
+
+[Service]
+User=user
+WorkingDirectory=/home/user/Code
+ExecStart=/bin/bash /home/user/Code/startup.sh
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
