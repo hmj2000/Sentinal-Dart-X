@@ -5,11 +5,11 @@ class Constants:
     captureResolutionWidth = 640
     captureResolutionHeight = 480
     captureFPS = 30
-    cascadeMinNeighbors = 8
+    cascadeMinNeighbors = 11
     cascadeScaleFactor = 1.1
     #Either "debug" or "deployed"
     mode = "deployed"
-    maxXDistanceFromCenter = 50
+    maxXDistanceFromCenter = 90
     minimumPixelAreaFireRange = 7800
     robotSoundEffectFile = "Ford.wav"
     playSoundRepeatDelay = .040
