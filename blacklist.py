@@ -12,6 +12,7 @@ class BlacklistDatabase:
         """Initialize the blacklist database"""
         self.pickle_path = pickle_path
         self.blacklist = self._load_database()
+        self._preloaded_encodings = None
         
     def _load_database(self) -> Dict[str, Dict]:
         """Load blacklist database from pickle file"""
@@ -31,16 +32,7 @@ class BlacklistDatabase:
             pickle.dump(self.blacklist, f)
             
     def add_face(self, face_id: str, face_encoding: np.ndarray, metadata: Dict = None) -> bool:
-        """Add a face to the blacklist
-        
-        Args:
-            face_id: Unique identifier for the face
-            face_encoding: Face encoding/embedding vector
-            metadata: Additional information about the person (name, notes, etc.)
-            
-        Returns:
-            bool: True if successfully added
-        """
+        """Add a face to the blacklist"""
         if metadata is None:
             metadata = {}
             
@@ -52,120 +44,136 @@ class BlacklistDatabase:
             'metadata': metadata
         }
         
+        # Reset preloaded encodings
+        self._preloaded_encodings = None
+        
         self._save_database()
         return True
         
     def remove_face(self, face_id: str) -> bool:
-        """Remove a face from the blacklist
-        
-        Args:
-            face_id: Unique identifier for the face
-            
-        Returns:
-            bool: True if successfully removed
-        """
+        """Remove a face from the blacklist"""
         if face_id in self.blacklist:
             del self.blacklist[face_id]
+            
+            # Reset preloaded encodings
+            self._preloaded_encodings = None
+            
             self._save_database()
             return True
         return False
+    
+    def preload_encodings(self):
+        """Preload encodings for faster matching during runtime"""
+        if not self._preloaded_encodings:
+            self._preloaded_encodings = {
+                'encodings': [entry['encoding'] for entry in self.blacklist.values()],
+                'ids': list(self.blacklist.keys())
+            }
+        return self._preloaded_encodings
         
     def check_face(self, face_encoding: np.ndarray, tolerance: float = 0.6) -> Tuple[bool, Optional[str], Optional[Dict]]:
-        """Check if a face matches any face in the blacklist
-        
-        Args:
-            face_encoding: Face encoding/embedding vector to check
-            tolerance: Strictness of face comparison (lower is stricter)
-            
-        Returns:
-            Tuple[bool, Optional[str], Optional[Dict]]: 
-                - Whether the face matches a blacklisted face
-                - face_id if matched, None otherwise
-                - metadata if matched, None otherwise
-        """
+        """Check if a face matches any face in the blacklist (optimized)"""
         if not self.blacklist:
             return False, None, None
             
-        # Convert to list format required by face_recognition library
-        known_encodings = [entry['encoding'] for entry in self.blacklist.values()]
+        # Make sure encodings are preloaded
+        preloaded = self.preload_encodings()
+        known_encodings = preloaded['encodings']
+        face_ids = preloaded['ids']
         
         if not known_encodings:
             return False, None, None
-            
-        # Compare with all known faces
-        matches = face_recognition.compare_faces(known_encodings, face_encoding, tolerance=tolerance)
         
-        if True in matches:
-            # Find the matched face_id
-            face_ids = list(self.blacklist.keys())
-            matched_index = matches.index(True)
-            matched_face_id = face_ids[matched_index]
-            matched_metadata = self.blacklist[matched_face_id]['metadata']
+        # Basic sanity check to avoid shape mismatch errors
+        if isinstance(face_encoding, np.ndarray) and isinstance(known_encodings[0], np.ndarray):
+            if face_encoding.shape != known_encodings[0].shape:
+                print(f"Warning: Shape mismatch - input: {face_encoding.shape}, reference: {known_encodings[0].shape}")
+                return False, None, None
+        
+        try:    
+            # Compare with all known faces
+            matches = face_recognition.compare_faces(known_encodings, face_encoding, tolerance=tolerance)
             
-            return True, matched_face_id, matched_metadata
+            if True in matches:
+                # Find the matched face_id
+                matched_index = matches.index(True)
+                matched_face_id = face_ids[matched_index]
+                matched_metadata = self.blacklist[matched_face_id]['metadata']
+                
+                return True, matched_face_id, matched_metadata
+        except Exception as e:
+            print(f"Error comparing faces: {e}")
             
         return False, None, None
         
     def get_all_faces(self) -> Dict[str, Dict]:
-        """Get all faces in the blacklist
-        
-        Returns:
-            Dict: Dictionary of all faces keyed by face_id
-        """
+        """Get all faces in the blacklist"""
         return self.blacklist
         
     def encode_face_from_image(self, image_path: str) -> Optional[np.ndarray]:
-        """Generate face encoding from an image file
-        
-        Args:
-            image_path: Path to image file
-            
-        Returns:
-            np.ndarray: Face encoding vector, None if no face found
-        """
+        """Simplified face encoding from an image file"""
         try:
             # Load image
             image = face_recognition.load_image_file(image_path)
             
-            # Find face locations
+            # Try HOG-based detection
             face_locations = face_recognition.face_locations(image)
             
-            if not face_locations:
-                print(f"No face found in {image_path}")
-                return None
-                
-            # If multiple faces found, use the first one
-            face_encoding = face_recognition.face_encodings(image, [face_locations[0]])[0]
-            return face_encoding
+            if face_locations:
+                # Use the first face
+                face_encoding = face_recognition.face_encodings(image, [face_locations[0]])[0]
+                return face_encoding
             
+            # If HOG failed, try using OpenCV for detection
+            image_cv = cv2.imread(image_path)
+            gray = cv2.cvtColor(image_cv, cv2.COLOR_BGR2GRAY)
+            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+            
+            # Try with relaxed parameters
+            faces = face_cascade.detectMultiScale(gray, 1.05, 3, minSize=(30, 30))
+            
+            if len(faces) > 0:
+                # Extract largest face
+                largest_face = max(faces, key=lambda rect: rect[2] * rect[3])
+                x, y, w, h = largest_face
+                
+                # Convert to face_recognition format
+                top, right, bottom, left = y, x+w, y+h, x
+                
+                # Get encoding
+                face_encoding = face_recognition.face_encodings(image, [(top, right, bottom, left)])[0]
+                return face_encoding
+                
+            print(f"No face found in {image_path}")
+            return None
+                
         except Exception as e:
             print(f"Error encoding face from image: {e}")
             return None
             
     def encode_face_from_frame(self, frame: np.ndarray, face_location=None) -> Optional[np.ndarray]:
-        """Generate face encoding from a video frame
-        
-        Args:
-            frame: OpenCV frame/image
-            face_location: Optional face location tuple (top, right, bottom, left)
-            
-        Returns:
-            np.ndarray: Face encoding vector, None if no face found
-        """
+        """Simplified face encoding from a video frame"""
         try:
             # Convert from BGR (OpenCV) to RGB (face_recognition)
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             
-            # Find face locations if not provided
-            if face_location is None:
-                face_locations = face_recognition.face_locations(rgb_frame)
-                if not face_locations:
-                    return None
-                face_location = face_locations[0]
+            # If location provided in OpenCV format (x,y,w,h), convert it
+            if face_location is not None and hasattr(face_location, 'x'):
+                x, y, w, h = face_location.x, face_location.y, face_location.w, face_location.h
+                top, right, bottom, left = y, x+w, y+h, x
+                face_location_tuple = (top, right, bottom, left)
             
-            # Generate encoding
-            face_encoding = face_recognition.face_encodings(rgb_frame, [face_location])[0]
-            return face_encoding
+                # Generate encoding
+                face_encoding = face_recognition.face_encodings(rgb_frame, [face_location_tuple])[0]
+                return face_encoding
+            else:
+                # No location provided, do full detection
+                face_locations = face_recognition.face_locations(rgb_frame)
+                if face_locations:
+                    face_encoding = face_recognition.face_encodings(rgb_frame, [face_locations[0]])[0]
+                    return face_encoding
+                
+            return None
             
         except Exception as e:
             print(f"Error encoding face from frame: {e}")
@@ -173,16 +181,7 @@ class BlacklistDatabase:
 
 
 def convert_opencv_face_to_face_recognition(face, frame_height):
-    """
-    Convert OpenCV face coordinates (x, y, w, h) to face_recognition format (top, right, bottom, left)
-    
-    Args:
-        face: Face object with x, y, w, h attributes
-        frame_height: Height of the frame
-        
-    Returns:
-        tuple: (top, right, bottom, left)
-    """
+    """Convert OpenCV face coordinates to face_recognition format"""
     left = face.x
     top = face.y
     right = face.x + face.w
@@ -192,27 +191,25 @@ def convert_opencv_face_to_face_recognition(face, frame_height):
 
 
 def check_face_against_blacklist(blacklist_db, frame, face, tolerance=0.6):
-    """
-    Check if a detected face is in the blacklist
-    
-    Args:
-        blacklist_db: BlacklistDatabase instance
-        frame: Current video frame
-        face: Face object with x, y, w, h attributes
-        tolerance: Face matching tolerance
+    """Check if a detected face is in the blacklist (lightweight version)"""
+    try:
+        # Convert to RGB once here to avoid multiple conversions
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
-    Returns:
-        tuple: (is_match, face_id, metadata)
-    """
-    # Convert face coordinates
-    height, width = frame.shape[:2]
-    face_location = convert_opencv_face_to_face_recognition(face, height)
-    
-    # Get face encoding
-    face_encoding = blacklist_db.encode_face_from_frame(frame, face_location)
-    
-    if face_encoding is None:
+        # Extract face location
+        x, y, w, h = face.x, face.y, face.w, face.h
+        top, right, bottom, left = y, x+w, y+h, x
+        
+        # Generate encoding
+        face_encodings = face_recognition.face_encodings(rgb_frame, [(top, right, bottom, left)])
+        
+        if not face_encodings:
+            return False, None, None
+            
+        face_encoding = face_encodings[0]
+        
+        # Check against blacklist
+        return blacklist_db.check_face(face_encoding, tolerance=tolerance)
+    except Exception as e:
+        print(f"Error checking face against blacklist: {e}")
         return False, None, None
-    
-    # Compare with blacklist
-    return blacklist_db.check_face(face_encoding, tolerance=tolerance)
