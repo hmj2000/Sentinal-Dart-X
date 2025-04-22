@@ -15,3 +15,4 @@ class Constants:
     playSoundRepeatDelay = .040
     serialDevice = "/dev/ttyUSB0"
     reverseControls = True
+    enableSound = False

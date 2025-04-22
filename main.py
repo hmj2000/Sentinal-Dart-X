@@ -69,7 +69,8 @@ def loop(faceCascade, cap, fb, s, cs):
                         cs.fire()
                     if debug():
                         cv2.putText(resizedFrame, "FIRE", (0,80), cv2.FONT_HERSHEY_SIMPLEX, 3.0, (0, 0, 255), 2, cv2.LINE_AA)
-                    s.play()
+                    if s != None:
+                        s.play()
                 else:
                     if deployed():
                         cs.move(forward=True)
@@ -101,13 +102,16 @@ def main():
     faceCascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
     cap = setupCaptureDevice()
     fb = FaceBuffer()
-    s = Sound()
+    if Constants.enableSound:
+        s = Sound()
     if deployed():
         cs = Commands(Constants.serialDevice)
     else:
         cs = None
-    
-    loop(faceCascade, cap, fb, s, cs)
+    if Constants.enableSound: 
+        loop(faceCascade, cap, fb, s, cs)
+    else:
+        loop(faceCascade, cap, fb, None, cs)
     cap.release()
     if debug():
         cv2.destroyAllWindows()
