@@ -4,9 +4,12 @@ from Constants import Constants
 class Commands:
     def __init__(self, serialPortFile="/dev/ttyUSB0", baudRate=115200):
         self.ser = serial.Serial(serialPortFile)
+        self.lastSent = "0"
     
     def _sendString(self,string):
-        self.ser.write(string.encode('utf-8'))
+        if self.lastSent != string:
+            self.ser.write(string.encode('utf-8'))
+            self.lastSent = string
     
     def rotate(self,clockwise = True):
         if clockwise:
